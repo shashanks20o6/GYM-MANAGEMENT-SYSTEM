@@ -194,29 +194,101 @@
     $('#stats').innerHTML = [
       statCard('Total gyms', data.stats.totalGyms, '⌂'),
       statCard('Approved owners', data.stats.approvedOwners, '✓'),
-      statCard('Pending owners', data.stats.pendingOwners, '◷')
+      statCard('Pending owners', data.stats.pendingOwners, '◷'),
+      statCard('Platform revenue', formatMoney(data.stats.platformRevenue), '₹'),
+      statCard('Active subscriptions', data.stats.activeSubscriptions, '♧')
     ].join('');
+
     $('#pending-count').textContent = data.pendingOwners.length;
     $('#pending-owners').innerHTML = data.pendingOwners.length ? data.pendingOwners.map((owner) => `
       <article class="approval-card">
         <div class="approval-main"><div class="avatar-circle">${escapeHtml((owner.gym_name || 'G').slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(owner.gym_name)}</strong><p>${escapeHtml(owner.username)} · ${escapeHtml(owner.email)}</p><small>${escapeHtml(owner.location)} · Account #${owner.user_id}</small></div></div>
         <div class="approval-actions"><button class="btn btn-sm btn-primary" data-admin-action="approve" data-user-id="${owner.user_id}">Approve</button><button class="btn btn-sm btn-outline-danger" data-admin-action="reject" data-user-id="${owner.user_id}">Reject</button></div>
       </article>`).join('') : emptyState('There are no pending Gym Owner registrations.');
+
     $('#gyms-table').innerHTML = data.gyms.length ? data.gyms.map((gym) => `
-      <tr><td><strong>${escapeHtml(gym.gym_name)}</strong><div class="table-subtext">Gym #${gym.gym_id}</div></td><td>${escapeHtml(gym.location)}</td><td>${escapeHtml(gym.owner_username)}<div class="table-subtext">${escapeHtml(gym.owner_email)}</div></td><td>${statusPill(gym.owner_status)}</td></tr>`).join('') : renderRows([], 4);
+      <tr>
+        <td><strong>${escapeHtml(gym.gym_name)}</strong><div class="table-subtext">Gym #${gym.gym_id}</div></td>
+        <td>${escapeHtml(gym.location)}</td>
+        <td>${escapeHtml(gym.owner_username)}<div class="table-subtext">${escapeHtml(gym.owner_email)}</div></td>
+        <td>${statusPill(gym.owner_status)}</td>
+        <td>${escapeHtml(gym.subscription_plan || '—')}</td>
+        <td>${statusPill(gym.subscription_status)}</td>
+        <td>${formatDate(gym.subscription_end_date)}</td>
+      </tr>`).join('') : renderRows([], 7);
+
+    $('#platform-plans').innerHTML = data.subscriptionPlans.length ? data.subscriptionPlans.map((plan) => {
+      const active = Number(plan.is_active) === 1 || plan.is_active === true;
+      return `<div class="compact-item">
+        <div><strong>${escapeHtml(plan.plan_name)} · ${formatMoney(plan.price)}</strong><small>${Number(plan.duration_months)} month(s) · ${Number(plan.purchase_count)} purchase(s)${plan.description ? ` · ${escapeHtml(plan.description)}` : ''}</small><small>${active ? 'Available to Gym Owners' : 'Not available for new purchases'}</small></div>
+        <button class="btn btn-sm ${active ? 'btn-outline-danger' : 'btn-outline-primary'}" type="button" data-platform-plan-status data-plan-id="${plan.platform_plan_id}" data-next-status="${active ? '0' : '1'}">${active ? 'Deactivate' : 'Activate'}</button>
+      </div>`;
+    }).join('') : emptyState('No platform subscription plans yet. Create your first plan using the form.');
+
+    $('#platform-payments-table').innerHTML = data.platformPayments.length ? data.platformPayments.map((payment) => `
+      <tr>
+        <td><strong>${escapeHtml(payment.transaction_reference)}</strong><div class="table-subtext">#${payment.owner_subscription_id}</div></td>
+        <td><strong>${escapeHtml(payment.gym_name)}</strong><div class="table-subtext">${escapeHtml(payment.owner_username)} · ${escapeHtml(payment.owner_email)}</div></td>
+        <td>${escapeHtml(payment.plan_name_snapshot)}</td>
+        <td><strong>${formatMoney(payment.amount)}</strong></td>
+        <td>${escapeHtml(payment.payment_method)}</td>
+        <td>${statusPill(payment.payment_status)}<div class="table-subtext">${escapeHtml(payment.subscription_status)}</div></td>
+        <td>${formatDate(payment.start_date)} – ${formatDate(payment.end_date)}</td>
+        <td>${formatDate(payment.paid_at)}</td>
+      </tr>`).join('') : renderRows([], 8);
 
     if (!$('#pending-owners').dataset.bound) {
       $('#pending-owners').dataset.bound = 'true';
       $('#pending-owners').addEventListener('click', async (event) => {
-      const button = event.target.closest('[data-admin-action]');
-      if (!button) return;
-      button.disabled = true;
-      try {
-        const action = button.dataset.adminAction;
-        const result = await api(`/api/admin/owners/${button.dataset.userId}/${action}`, { method: 'PATCH' });
-        showMessage(result.message);
-        await initSuperAdmin();
-      } catch (error) { showMessage(error.message, 'danger'); button.disabled = false; }
+        const button = event.target.closest('[data-admin-action]');
+        if (!button) return;
+        button.disabled = true;
+        try {
+          const action = button.dataset.adminAction;
+          const result = await api(`/api/admin/owners/${button.dataset.userId}/${action}`, { method: 'PATCH' });
+          showMessage(result.message);
+          await initSuperAdmin();
+        } catch (error) { showMessage(error.message, 'danger'); button.disabled = false; }
+      });
+    }
+
+    if (!$('#create-platform-plan-form').dataset.bound) {
+      $('#create-platform-plan-form').dataset.bound = 'true';
+      $('#create-platform-plan-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearMessage();
+        const form = event.currentTarget;
+        try {
+          const result = await api('/api/admin/subscription-plans', {
+            method: 'POST',
+            body: Object.fromEntries(new FormData(form).entries())
+          });
+          showMessage(result.message);
+          form.reset();
+          await initSuperAdmin();
+        } catch (error) {
+          showMessage(error.message, 'danger');
+        }
+      });
+    }
+
+    if (!$('#platform-plans').dataset.bound) {
+      $('#platform-plans').dataset.bound = 'true';
+      $('#platform-plans').addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-platform-plan-status]');
+        if (!button) return;
+        button.disabled = true;
+        try {
+          const result = await api(`/api/admin/subscription-plans/${button.dataset.planId}/status`, {
+            method: 'PATCH',
+            body: { is_active: button.dataset.nextStatus === '1' }
+          });
+          showMessage(result.message);
+          await initSuperAdmin();
+        } catch (error) {
+          showMessage(error.message, 'danger');
+          button.disabled = false;
+        }
       });
     }
   }
@@ -231,6 +303,37 @@
       statCard('Paid revenue', formatMoney(data.stats.revenue), '₹'),
       statCard('Pending approvals', data.stats.pendingApprovals, '◷')
     ].join('');
+
+    const platformSubscription = data.platformSubscription || { current: null, availablePlans: [], history: [] };
+    const currentPlatformSubscription = platformSubscription.current;
+    $('#platform-subscription-status').textContent = currentPlatformSubscription ? 'Active' : 'No active plan';
+    $('#platform-current-subscription').innerHTML = currentPlatformSubscription
+      ? `<article class="request-card mb-0">
+          <div class="request-card-heading"><div><strong>${escapeHtml(currentPlatformSubscription.plan_name)}</strong><p>${Number(currentPlatformSubscription.duration_months)} month(s) · ${formatMoney(currentPlatformSubscription.amount)}</p></div>${statusPill('Active')}</div>
+          <p class="small text-secondary mb-1">Valid from ${formatDate(currentPlatformSubscription.start_date)} through ${formatDate(currentPlatformSubscription.end_date)}.</p>
+          <p class="small text-secondary mb-0">Payment: ${escapeHtml(currentPlatformSubscription.payment_method)} · Reference: ${escapeHtml(currentPlatformSubscription.transaction_reference)}</p>
+        </article>`
+      : emptyState('You do not have an active FitTrack platform subscription. Choose one of the available plans below.');
+
+    $('#platform-plan-list').innerHTML = platformSubscription.availablePlans.length
+      ? platformSubscription.availablePlans.map((plan) => `<article class="workout-plan-card">
+          <div class="plan-card-heading"><div><h3>${escapeHtml(plan.plan_name)}</h3><p>${Number(plan.duration_months)} month(s)</p></div><strong>${formatMoney(plan.price)}</strong></div>
+          <p class="small text-secondary">${escapeHtml(plan.description || 'Platform subscription for your gym.')}</p>
+          <button class="btn btn-primary btn-sm" type="button" data-owner-platform-plan="${plan.platform_plan_id}">Pay demo subscription</button>
+        </article>`).join('')
+      : emptyState('The Super Admin has not published any active platform subscription plans yet.');
+
+    $('#platform-subscription-history').innerHTML = platformSubscription.history.length
+      ? platformSubscription.history.map((item) => `<tr>
+          <td>${escapeHtml(item.plan_name)}<div class="table-subtext">${Number(item.duration_months)} month(s)</div></td>
+          <td>${formatMoney(item.amount)}</td>
+          <td>${escapeHtml(item.payment_method)}</td>
+          <td>${statusPill(item.subscription_status)}</td>
+          <td>${formatDate(item.start_date)} – ${formatDate(item.end_date)}</td>
+          <td>${escapeHtml(item.transaction_reference)}</td>
+          <td>${formatDate(item.paid_at)}</td>
+        </tr>`).join('')
+      : renderRows([], 7);
     $('#pending-count').textContent = data.pendingUsers.length;
     $('#pending-users').innerHTML = data.pendingUsers.length ? data.pendingUsers.map((person) => `
       <article class="approval-card"><div class="approval-main"><div class="avatar-circle">${escapeHtml((person.first_name || person.username).slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(person.first_name)} ${escapeHtml(person.last_name)}</strong><p>${escapeHtml(person.username)} · ${escapeHtml(person.profile_email)}</p><small>${escapeHtml(person.role === 'Members' ? 'Member' : 'Trainer')} · Account #${person.user_id}</small></div></div>
@@ -239,6 +342,29 @@
     $('#videos-list').innerHTML = data.videos.length ? data.videos.map((video) => `<div class="compact-item"><div><strong>${escapeHtml(video.workout_name)}</strong><small>${escapeHtml(video.target_muscle_group || 'General')}</small></div><a class="small" href="${escapeHtml(safeUrl(video.video_url))}" target="_blank" rel="noopener noreferrer">Open video ↗</a></div>`).join('') : emptyState('No workout videos added yet.');
     $('#payments-table').innerHTML = data.payments.length ? data.payments.map((payment) => `<tr><td>${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</td><td>${escapeHtml(payment.plan_name)}</td><td>${formatMoney(payment.amount)}</td><td>${escapeHtml(payment.pay_method)}</td><td>${statusPill(payment.pay_status)}</td><td>${formatDate(payment.pay_date)}</td></tr>`).join('') : renderRows([], 6);
     $('#attendance-table').innerHTML = data.attendance.length ? data.attendance.map((row) => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${formatDate(row.date)}</td><td>${formatTime(row.check_in)}</td><td>${formatTime(row.check_out)}</td></tr>`).join('') : renderRows([], 4);
+
+    if (!$('#platform-plan-list').dataset.bound) {
+      $('#platform-plan-list').dataset.bound = 'true';
+      $('#platform-plan-list').addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-owner-platform-plan]');
+        if (!button) return;
+        const planId = Number(button.dataset.ownerPlatformPlan);
+        const method = $('#platform-payment-method').value;
+        if (!window.confirm('This is a demo checkout. It will record a test payment only; no real money will be transferred. Continue?')) return;
+        button.disabled = true;
+        try {
+          const result = await api('/api/owner/platform-subscriptions', {
+            method: 'POST',
+            body: { platform_plan_id: planId, payment_method: method }
+          });
+          showMessage(`${result.message} Reference: ${result.transaction_reference}`);
+          await initOwner();
+        } catch (error) {
+          showMessage(error.message, 'danger');
+          button.disabled = false;
+        }
+      });
+    }
 
     if (!$('#pending-users').dataset.bound) {
       $('#pending-users').dataset.bound = 'true';

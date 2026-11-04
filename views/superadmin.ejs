@@ -8,16 +8,48 @@
 <body class="dashboard-page" data-page="superadmin">
   <%- include('partials/nav', { currentUser }) %>
   <main class="dashboard-container">
-    <div class="page-heading"><div><p class="eyebrow text-primary">SYSTEM CONTROL</p><h1>Super Admin Dashboard</h1><p class="text-secondary">Review gym registrations and monitor the FitTrack network.</p></div><span class="status-chip">Platform administrator</span></div>
+    <div class="page-heading"><div><p class="eyebrow text-primary">SYSTEM CONTROL</p><h1>Super Admin Dashboard</h1><p class="text-secondary">Manage gym owners, platform subscriptions and total platform revenue.</p></div><span class="status-chip">Platform administrator</span></div>
     <div id="form-message" class="alert d-none" role="alert"></div>
-    <section id="stats" class="stats-grid mb-4" aria-label="Platform statistics"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
+
+    <section id="stats" class="stats-grid mb-4" aria-label="Platform statistics">
+      <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
+    </section>
+
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>Gym Owner subscription plans</h2><p>Create the plans that Gym Owners can purchase to use the FitTrack platform. These are separate from gym membership plans.</p></div></div>
+      <div class="content-grid two-columns">
+        <div>
+          <form id="create-platform-plan-form" class="stack-form">
+            <div><label class="form-label" for="platform-plan-name">Plan name</label><input class="form-control" id="platform-plan-name" name="plan_name" required maxlength="100" placeholder="Starter, Growth, Premium"></div>
+            <div><label class="form-label" for="platform-plan-description">Description</label><input class="form-control" id="platform-plan-description" name="description" maxlength="255" placeholder="Features included in this plan"></div>
+            <div class="form-row">
+              <div><label class="form-label" for="platform-plan-duration">Duration (months)</label><input class="form-control" id="platform-plan-duration" name="duration_months" type="number" min="1" max="120" value="1" required></div>
+              <div><label class="form-label" for="platform-plan-price">Price (₹)</label><input class="form-control" id="platform-plan-price" name="price" type="number" min="0.01" step="0.01" required placeholder="999"></div>
+            </div>
+            <button class="btn btn-primary" type="submit">Create platform plan</button>
+          </form>
+          <p class="small text-secondary mt-3 mb-0">A plan used in a past purchase can be deactivated, but its payment history is retained.</p>
+        </div>
+        <div>
+          <div class="subsection-title">Published and inactive plans</div>
+          <div id="platform-plans" class="compact-list"><p class="text-secondary">Loading platform plans…</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>Platform subscription payments</h2><p>Revenue collected from Gym Owners for FitTrack platform subscriptions. Member-to-gym payments are not included here.</p></div></div>
+      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Transaction</th><th>Gym / Owner</th><th>Plan</th><th>Amount</th><th>Method</th><th>Payment</th><th>Subscription period</th><th>Paid on</th></tr></thead><tbody id="platform-payments-table"><tr><td colspan="8" class="text-secondary">Loading platform payments…</td></tr></tbody></table></div>
+    </section>
+
     <section class="panel mb-4">
       <div class="panel-heading"><div><h2>Pending Gym Owner approvals</h2><p>Approve or reject owner registrations before their gyms become selectable.</p></div><span class="count-pill" id="pending-count">—</span></div>
       <div id="pending-owners" class="empty-state">Loading pending registrations…</div>
     </section>
+
     <section class="panel">
-      <div class="panel-heading"><div><h2>All gyms</h2><p>Every gym and its linked owner account status.</p></div></div>
-      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Gym</th><th>Location</th><th>Owner</th><th>Owner status</th></tr></thead><tbody id="gyms-table"><tr><td colspan="4" class="text-secondary">Loading gyms…</td></tr></tbody></table></div>
+      <div class="panel-heading"><div><h2>All gyms</h2><p>Every gym, linked owner and current platform subscription status.</p></div></div>
+      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Gym</th><th>Location</th><th>Owner</th><th>Owner status</th><th>Platform plan</th><th>Subscription status</th><th>Valid until</th></tr></thead><tbody id="gyms-table"><tr><td colspan="7" class="text-secondary">Loading gyms…</td></tr></tbody></table></div>
     </section>
   </main>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>

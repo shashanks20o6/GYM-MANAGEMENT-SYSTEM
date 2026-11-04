@@ -11,6 +11,19 @@
     <div class="page-heading"><div><p class="eyebrow text-primary">GYM WORKSPACE</p><h1 id="gym-title">Gym Owner Dashboard</h1><p class="text-secondary" id="gym-subtitle">Manage your members, trainers, plans and day-to-day operations.</p></div><span class="status-chip">Owner workspace</span></div>
     <div id="form-message" class="alert d-none" role="alert"></div>
     <section id="stats" class="stats-grid mb-4"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
+
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>FitTrack platform subscription</h2><p>This is your Gym Owner subscription to the FitTrack platform. It is separate from the membership plans you sell to your own members.</p></div><span id="platform-subscription-status" class="count-pill">Loading…</span></div>
+      <div class="alert alert-warning small" role="note">Demo checkout only: clicking a payment button records a test payment in this project. No real money is collected. A payment gateway must be integrated before accepting real payments.</div>
+      <div id="platform-current-subscription" class="empty-state mb-4">Loading your platform subscription…</div>
+      <div class="form-row mb-3">
+        <div><label class="form-label" for="platform-payment-method">Demo payment method</label><select class="form-select" id="platform-payment-method"><option value="UPI">UPI</option><option value="Card">Card</option><option value="NetBanking">Net Banking</option><option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash</option></select></div>
+      </div>
+      <div class="subsection-title">Available platform plans</div>
+      <div id="platform-plan-list" class="content-grid two-columns"><p class="text-secondary">Loading available plans…</p></div>
+      <div class="subsection-title mt-4">Your platform subscription history</div>
+      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Plan</th><th>Amount</th><th>Method</th><th>Payment</th><th>Period</th><th>Transaction</th><th>Paid on</th></tr></thead><tbody id="platform-subscription-history"><tr><td colspan="7" class="text-secondary">Loading history…</td></tr></tbody></table></div>
+    </section>
     <section class="panel mb-4">
       <div class="panel-heading"><div><h2>Member and trainer approvals</h2><p>Only pending accounts linked to your gym are listed here.</p></div><span class="count-pill" id="pending-count">—</span></div>
       <div id="pending-users" class="empty-state">Loading pending accounts…</div>

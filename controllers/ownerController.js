@@ -1,9 +1,57 @@
 const db = require('../config/db');
+const crypto = require('crypto');
 
 async function getOwnerGymId(userId, executor = db) {
   const [rows] = await executor.execute('SELECT gym_id FROM gyms WHERE owner_id = ? LIMIT 1', [userId]);
   if (!rows.length) return null;
   return rows[0].gym_id;
+}
+
+async function getPlatformSubscriptionSummary(gymId, executor = db) {
+  const [activeRows] = await executor.execute(
+    `SELECT s.owner_subscription_id, s.plan_name_snapshot AS plan_name,
+            s.duration_months_snapshot AS duration_months, s.amount,
+            DATE_FORMAT(s.start_date, '%Y-%m-%d') AS start_date,
+            DATE_FORMAT(s.end_date, '%Y-%m-%d') AS end_date,
+            s.payment_method, s.transaction_reference, s.payment_status,
+            'Active' AS subscription_status
+     FROM gym_owner_subscriptions s
+     WHERE s.gym_id = ? AND s.payment_status = 'Paid'
+       AND CURDATE() BETWEEN s.start_date AND s.end_date
+     ORDER BY s.end_date DESC, s.owner_subscription_id DESC
+     LIMIT 1`,
+    [gymId]
+  );
+  const [availablePlans] = await executor.execute(
+    `SELECT platform_plan_id, plan_name, description, duration_months, price
+     FROM platform_subscription_plans
+     WHERE is_active = 1
+     ORDER BY price ASC, duration_months ASC`
+  );
+  const [history] = await executor.execute(
+    `SELECT s.owner_subscription_id, s.plan_name_snapshot AS plan_name,
+            s.duration_months_snapshot AS duration_months, s.amount,
+            DATE_FORMAT(s.start_date, '%Y-%m-%d') AS start_date,
+            DATE_FORMAT(s.end_date, '%Y-%m-%d') AS end_date,
+            s.payment_method, s.transaction_reference, s.payment_status,
+            DATE_FORMAT(s.paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+            CASE
+              WHEN s.payment_status <> 'Paid' THEN s.payment_status
+              WHEN CURDATE() BETWEEN s.start_date AND s.end_date THEN 'Active'
+              ELSE 'Expired'
+            END AS subscription_status
+     FROM gym_owner_subscriptions s
+     WHERE s.gym_id = ?
+     ORDER BY s.created_at DESC, s.owner_subscription_id DESC
+     LIMIT 30`,
+    [gymId]
+  );
+
+  return {
+    current: activeRows[0] || null,
+    availablePlans,
+    history
+  };
 }
 
 async function getDashboard(req, res, next) {
@@ -64,11 +112,12 @@ async function getDashboard(req, res, next) {
       'SELECT video_id, workout_name, target_muscle_group, video_url FROM workout_videos WHERE gym_id = ? ORDER BY video_id DESC',
       [gymId]
     );
+    const platformSubscription = await getPlatformSubscriptionSummary(gymId);
 
     res.json({
       gym: gymRows[0],
       stats: { members: memberCount.total, trainers: trainerCount.total, revenue: revenue.total, pendingApprovals: pendingCount.total },
-      pendingUsers, plans, payments, attendance, videos
+      pendingUsers, plans, payments, attendance, videos, platformSubscription
     });
   } catch (error) {
     next(error);
@@ -130,6 +179,97 @@ async function reviewUser(req, res, next) {
   }
 }
 
+async function payPlatformSubscription(req, res, next) {
+  const platformPlanId = Number(req.body.platform_plan_id);
+  const paymentMethod = String(req.body.payment_method || '').trim();
+  const allowedMethods = ['UPI', 'Card', 'NetBanking', 'Bank Transfer', 'Cash'];
+
+  if (!Number.isInteger(platformPlanId) || platformPlanId <= 0 || !allowedMethods.includes(paymentMethod)) {
+    return res.status(400).json({ message: 'Choose a valid platform subscription plan and payment method.' });
+  }
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [ownerRows] = await connection.execute(
+      `SELECT g.gym_id
+       FROM gyms g
+       INNER JOIN users u ON u.user_id = g.owner_id
+       WHERE u.user_id = ? AND u.role = 'Gym_owners' AND u.account_status = 'Approved'
+       LIMIT 1 FOR UPDATE`,
+      [req.user.user_id]
+    );
+    if (!ownerRows.length) {
+      await connection.rollback();
+      return res.status(403).json({ message: 'Only an approved Gym Owner with a registered gym can purchase a platform subscription.' });
+    }
+    const gymId = ownerRows[0].gym_id;
+
+    // Serialize concurrent purchases for this gym so two requests cannot create overlapping terms.
+    await connection.execute('SELECT gym_id FROM gyms WHERE gym_id = ? FOR UPDATE', [gymId]);
+
+    const [planRows] = await connection.execute(
+      `SELECT platform_plan_id, plan_name, duration_months, price
+       FROM platform_subscription_plans
+       WHERE platform_plan_id = ? AND is_active = 1
+       FOR UPDATE`,
+      [platformPlanId]
+    );
+    if (!planRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'This subscription plan is unavailable. Refresh the page and choose an active plan.' });
+    }
+    const plan = planRows[0];
+
+    // A renewal starts after the latest paid term, or today when there is no current term.
+    const [[dateRow]] = await connection.execute(
+      `SELECT DATE_FORMAT(
+                GREATEST(CURDATE(), COALESCE(DATE_ADD(MAX(end_date), INTERVAL 1 DAY), CURDATE())),
+                '%Y-%m-%d'
+              ) AS start_date
+       FROM gym_owner_subscriptions
+       WHERE gym_id = ? AND payment_status = 'Paid'`,
+      [gymId]
+    );
+    const startDate = dateRow.start_date;
+    const transactionReference = `DEMO-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    const [result] = await connection.execute(
+      `INSERT INTO gym_owner_subscriptions
+         (gym_id, platform_plan_id, plan_name_snapshot, duration_months_snapshot,
+          amount, start_date, end_date, payment_status, payment_method,
+          transaction_reference, paid_at)
+       VALUES (?, ?, ?, ?, ?, ?,
+               DATE_SUB(DATE_ADD(?, INTERVAL ? MONTH), INTERVAL 1 DAY),
+               'Paid', ?, ?, NOW())`,
+      [
+        gymId,
+        plan.platform_plan_id,
+        plan.plan_name,
+        plan.duration_months,
+        plan.price,
+        startDate,
+        startDate,
+        plan.duration_months,
+        paymentMethod,
+        transactionReference
+      ]
+    );
+
+    await connection.commit();
+    res.status(201).json({
+      message: 'Demo payment recorded successfully. No real money was transferred.',
+      owner_subscription_id: result.insertId,
+      transaction_reference: transactionReference
+    });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
 async function createMembershipPlan(req, res, next) {
   try {
     const gymId = await getOwnerGymId(req.user.user_id);
@@ -174,4 +314,4 @@ async function createWorkoutVideo(req, res, next) {
   }
 }
 
-module.exports = { getDashboard, reviewUser, createMembershipPlan, createWorkoutVideo };
+module.exports = { getDashboard, reviewUser, createMembershipPlan, createWorkoutVideo, payPlatformSubscription };
