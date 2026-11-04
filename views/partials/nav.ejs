@@ -1,0 +1,11 @@
+<nav class="app-nav">
+  <a class="brand-lockup" href="/dashboard"><span class="brand-mark small-mark">F</span><span>FITTRACK</span></a>
+  <div class="nav-user">
+    <div class="user-copy"><strong id="nav-username">
+        <%= currentUser.username %>
+      </strong><span>
+        <%= currentUser.role.replace('_', ' ' ) %>
+      </span></div>
+    <button class="btn btn-outline-secondary btn-sm" id="logout-button" type="button">Sign out</button>
+  </div>
+</nav>

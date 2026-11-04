@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"><link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="dashboard-page" data-page="trainer">
+  <%- include('partials/nav', { currentUser }) %>
+  <main class="dashboard-container">
+    <div class="page-heading"><div><p class="eyebrow text-primary">TRAINER WORKSPACE</p><h1>Trainer Dashboard</h1><p class="text-secondary">Track attendance, respond to workout requests and assign training plans.</p></div><span class="status-chip">Trainer workspace</span></div>
+    <div id="form-message" class="alert d-none" role="alert"></div>
+    <section class="panel attendance-panel mb-4">
+      <div><p class="eyebrow text-primary mb-1">TODAY'S ATTENDANCE</p><h2 id="attendance-status">Attendance not started</h2><p class="text-secondary mb-0" id="attendance-times">Clock in when you begin your shift.</p></div>
+      <div class="attendance-actions"><button class="btn btn-primary" id="clock-in-button" type="button">Clock in</button><button class="btn btn-outline-primary" id="clock-out-button" type="button" disabled>Clock out</button></div>
+    </section>
+    <section class="panel mb-4"><div class="panel-heading"><div><h2>Workout requests</h2><p>Accept a request or create a workout plan using your gym's video library.</p></div><span class="count-pill" id="requests-count">—</span></div><div id="workout-requests" class="empty-state">Loading workout requests…</div></section>
+    <div class="content-grid two-columns">
+      <section class="panel"><div class="panel-heading"><div><h2>My assigned members</h2><p>Members who have sent a request to you.</p></div></div><div id="assigned-members" class="compact-list">Loading members…</div></section>
+      <section class="panel"><div class="panel-heading"><div><h2>Previously assigned plans</h2><p>Plans you have created.</p></div></div><div id="assigned-plans" class="compact-list">Loading plans…</div></section>
+    </div>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>
+</body>
+</html>

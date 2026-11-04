@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"><link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="dashboard-page" data-page="owner">
+  <%- include('partials/nav', { currentUser }) %>
+  <main class="dashboard-container">
+    <div class="page-heading"><div><p class="eyebrow text-primary">GYM WORKSPACE</p><h1 id="gym-title">Gym Owner Dashboard</h1><p class="text-secondary" id="gym-subtitle">Manage your members, trainers, plans and day-to-day operations.</p></div><span class="status-chip">Owner workspace</span></div>
+    <div id="form-message" class="alert d-none" role="alert"></div>
+    <section id="stats" class="stats-grid mb-4"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>Member and trainer approvals</h2><p>Only pending accounts linked to your gym are listed here.</p></div><span class="count-pill" id="pending-count">—</span></div>
+      <div id="pending-users" class="empty-state">Loading pending accounts…</div>
+    </section>
+    <div class="content-grid two-columns mb-4">
+      <section class="panel">
+        <div class="panel-heading"><div><h2>Create membership plan</h2><p>Plans are available to members registered with your gym.</p></div></div>
+        <form id="create-plan-form" class="stack-form">
+          <div><label class="form-label" for="plan_name">Plan name</label><input class="form-control" id="plan_name" name="plan_name" required maxlength="100" placeholder="Monthly membership"></div>
+          <div class="form-row"><div><label class="form-label" for="plan_duration">Duration (months)</label><input class="form-control" id="plan_duration" name="plan_duration" type="number" min="1" max="120" required></div><div><label class="form-label" for="price">Price (₹)</label><input class="form-control" id="price" name="price" type="number" min="0" step="0.01" required></div></div>
+          <button class="btn btn-primary" type="submit">Add membership plan</button>
+        </form>
+        <div class="subsection-title mt-4">Available plans</div><div id="plans-list" class="compact-list"><p class="text-secondary">Loading plans…</p></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><h2>Add workout video</h2><p>Trainers use these videos when assigning exercises.</p></div></div>
+        <form id="create-video-form" class="stack-form">
+          <div><label class="form-label" for="workout_name">Workout name</label><input class="form-control" id="workout_name" name="workout_name" required maxlength="150" placeholder="Dumbbell shoulder press"></div>
+          <div><label class="form-label" for="target_muscle_group">Target muscle group</label><input class="form-control" id="target_muscle_group" name="target_muscle_group" maxlength="100" placeholder="Shoulders"></div>
+          <div><label class="form-label" for="video_url">Video URL</label><input class="form-control" id="video_url" name="video_url" type="url" required maxlength="255" placeholder="https://…"></div>
+          <button class="btn btn-primary" type="submit">Save workout video</button>
+        </form>
+        <div class="subsection-title mt-4">Workout library</div><div id="videos-list" class="compact-list"><p class="text-secondary">Loading videos…</p></div>
+      </section>
+    </div>
+    <section class="panel mb-4"><div class="panel-heading"><div><h2>Recent payments</h2><p>Payment records for your gym.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead><tbody id="payments-table"><tr><td colspan="6" class="text-secondary">Loading payments…</td></tr></tbody></table></div></section>
+    <section class="panel"><div class="panel-heading"><div><h2>Trainer attendance</h2><p>Latest clock-in and clock-out records.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Trainer</th><th>Date</th><th>Check-in</th><th>Check-out</th></tr></thead><tbody id="attendance-table"><tr><td colspan="4" class="text-secondary">Loading attendance…</td></tr></tbody></table></div></section>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>
+</body>
+</html>

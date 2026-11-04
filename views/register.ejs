@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="auth-page register-page" data-page="register">
+  <main class="register-shell">
+    <header class="register-header">
+      <a href="/login" class="brand-lockup"><span class="brand-mark small-mark">F</span><span>FITTRACK</span></a>
+      <a href="/login" class="text-decoration-none small fw-semibold">Already registered? Sign in</a>
+    </header>
+    <section class="register-card">
+      <div class="mb-4">
+        <p class="eyebrow text-primary">GET STARTED</p>
+        <h1>Create your account</h1>
+        <p class="text-secondary mb-0">Choose your role and complete the details. Your account will be reviewed before access is enabled.</p>
+      </div>
+      <div id="form-message" class="alert d-none" role="alert"></div>
+      <form id="register-form" novalidate>
+        <div class="section-heading">Account details</div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-control" id="username" name="username" required maxlength="50" autocomplete="username">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="email">Email address</label>
+            <input class="form-control" id="email" name="email" type="email" required maxlength="255" autocomplete="email">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control" id="password" name="password" type="password" required minlength="8" maxlength="72" autocomplete="new-password">
+            <div class="form-text">Use at least 8 characters.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="role">Register as</label>
+            <select class="form-select" id="role" name="role" required>
+              <option value="">Select a role</option>
+              <option value="Gym_owners">Gym Owner</option>
+              <option value="Trainers">Trainer</option>
+              <option value="Members">Member</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="role-fields mt-4" data-role-fields="Gym_owners" hidden>
+          <div class="section-heading">Gym details</div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="gym_name">Gym name</label><input class="form-control" id="gym_name" name="gym_name" maxlength="50"></div>
+            <div class="col-md-6"><label class="form-label" for="location">Gym location</label><input class="form-control" id="location" name="location" maxlength="255" placeholder="Area, city"></div>
+            <div class="col-12"><label class="form-label" for="contact_info">Contact information</label><input class="form-control" id="contact_info" name="contact_info" maxlength="255" placeholder="Phone number or contact email"></div>
+          </div>
+        </div>
+
+        <div class="role-fields mt-4" data-role-fields="Trainers" hidden>
+          <div class="section-heading">Trainer details</div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="trainer_first_name">First name</label><input class="form-control" id="trainer_first_name" name="first_name" maxlength="50"></div>
+            <div class="col-md-6"><label class="form-label" for="trainer_last_name">Last name</label><input class="form-control" id="trainer_last_name" name="last_name" maxlength="50"></div>
+            <div class="col-md-6"><label class="form-label" for="trainer_gym_id">Select approved gym</label><select class="form-select gym-select" id="trainer_gym_id" name="gym_id"><option value="">Loading gyms...</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="emp_type">Employment type</label><select class="form-select" id="emp_type" name="emp_type"><option>Full-time</option><option>Part-time</option><option>Contract</option></select></div>
+            <div class="col-md-4"><label class="form-label" for="base_salary">Base salary</label><input class="form-control" id="base_salary" name="base_salary" type="number" min="0" step="0.01" value="0"></div>
+            <div class="col-md-4"><label class="form-label" for="commission_rate">Commission rate (%)</label><input class="form-control" id="commission_rate" name="commission_rate" type="number" min="0" max="100" step="0.01" value="0"></div>
+            <div class="col-md-4"><label class="form-label" for="exp_years">Experience (years)</label><input class="form-control" id="exp_years" name="exp_years" type="number" min="0" step="1" value="0"></div>
+            <div class="col-12"><label class="form-label" for="photo_url">Photo URL (optional)</label><input class="form-control" id="photo_url" name="photo_url" type="url" maxlength="255"></div>
+          </div>
+        </div>
+
+        <div class="role-fields mt-4" data-role-fields="Members" hidden>
+          <div class="section-heading">Member details</div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="member_first_name">First name</label><input class="form-control" id="member_first_name" name="first_name" maxlength="50"></div>
+            <div class="col-md-6"><label class="form-label" for="member_last_name">Last name</label><input class="form-control" id="member_last_name" name="last_name" maxlength="50"></div>
+            <div class="col-md-6"><label class="form-label" for="member_gym_id">Select approved gym</label><select class="form-select gym-select" id="member_gym_id" name="gym_id"><option value="">Loading gyms...</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" maxlength="12" inputmode="tel"></div>
+            <div class="col-md-6"><label class="form-label" for="dob">Date of birth</label><input class="form-control" id="dob" name="dob" type="date"></div>
+            <div class="col-md-6"><label class="form-label" for="photo">Photo URL (optional)</label><input class="form-control" id="photo" name="photo" type="url" maxlength="255"></div>
+            <div class="col-12"><label class="form-label" for="address">Address</label><input class="form-control" id="address" name="address" maxlength="255"></div>
+            <div class="col-12"><label class="form-label" for="medical_cond">Medical conditions (optional)</label><textarea class="form-control" id="medical_cond" name="medical_cond" rows="2" maxlength="255"></textarea></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg w-100 mt-4" type="submit">Submit registration <span aria-hidden="true">→</span></button>
+        <p class="small text-secondary text-center mt-3 mb-0">Super Admin accounts are created by the system administrator.</p>
+      </form>
+    </section>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/app.js" defer></script>
+</body>
+</html>

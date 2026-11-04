@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"><link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="dashboard-page" data-page="superadmin">
+  <%- include('partials/nav', { currentUser }) %>
+  <main class="dashboard-container">
+    <div class="page-heading"><div><p class="eyebrow text-primary">SYSTEM CONTROL</p><h1>Super Admin Dashboard</h1><p class="text-secondary">Review gym registrations and monitor the FitTrack network.</p></div><span class="status-chip">Platform administrator</span></div>
+    <div id="form-message" class="alert d-none" role="alert"></div>
+    <section id="stats" class="stats-grid mb-4" aria-label="Platform statistics"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>Pending Gym Owner approvals</h2><p>Approve or reject owner registrations before their gyms become selectable.</p></div><span class="count-pill" id="pending-count">—</span></div>
+      <div id="pending-owners" class="empty-state">Loading pending registrations…</div>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><h2>All gyms</h2><p>Every gym and its linked owner account status.</p></div></div>
+      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Gym</th><th>Location</th><th>Owner</th><th>Owner status</th></tr></thead><tbody id="gyms-table"><tr><td colspan="4" class="text-secondary">Loading gyms…</td></tr></tbody></table></div>
+    </section>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>
+</body>
+</html>

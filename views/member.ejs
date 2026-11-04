@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"><link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="dashboard-page" data-page="member">
+  <%- include('partials/nav', { currentUser }) %>
+  <main class="dashboard-container">
+    <div class="page-heading"><div><p class="eyebrow text-primary">MEMBER WORKSPACE</p><h1 id="member-title">Your fitness dashboard</h1><p class="text-secondary">View your membership, payment history and workout plans.</p></div><span class="status-chip">Member workspace</span></div>
+    <div id="form-message" class="alert d-none" role="alert"></div>
+    <section class="content-grid two-columns mb-4">
+      <section class="panel"><div class="panel-heading"><div><h2>My profile</h2><p>Your registered details.</p></div></div><div id="member-profile" class="profile-details">Loading profile…</div></section>
+      <section class="panel"><div class="panel-heading"><div><h2>Buy or renew membership</h2><p>Choose a plan offered by your gym.</p></div></div>
+        <form id="subscription-form" class="stack-form">
+          <div><label class="form-label" for="subscription-plan">Membership plan</label><select class="form-select" id="subscription-plan" name="plan_id" required><option value="">Loading plans…</option></select></div>
+          <div><label class="form-label" for="pay_method">Payment method</label><select class="form-select" id="pay_method" name="pay_method" required><option value="UPI">UPI</option><option value="Cash">Cash</option><option value="Card">Card</option><option value="NetBanking">Net Banking</option></select></div>
+          <button class="btn btn-primary" type="submit">Record payment and activate plan</button>
+          <p class="form-text mb-0">This student-project demo records a payment method; it does not connect to a real payment gateway.</p>
+        </form>
+        <div class="subsection-title mt-4">My subscriptions</div><div id="subscriptions-list" class="compact-list">Loading subscriptions…</div>
+      </section>
+    </section>
+    <section class="panel mb-4"><div class="panel-heading"><div><h2>Request a workout plan</h2><p>Send a request to an approved trainer at your gym.</p></div></div>
+      <form id="workout-request-form" class="stack-form horizontal-form">
+        <div><label class="form-label" for="trainer-select">Trainer</label><select class="form-select" id="trainer-select" name="train_id" required><option value="">Loading trainers…</option></select></div>
+        <div class="flex-grow-1"><label class="form-label" for="member_notes">What are your goals?</label><input class="form-control" id="member_notes" name="member_notes" maxlength="2000" placeholder="Example: improve strength and build stamina"></div>
+        <button class="btn btn-primary align-self-end" type="submit">Send request</button>
+      </form>
+      <div class="subsection-title mt-4">My workout requests</div><div id="member-requests" class="compact-list">Loading requests…</div>
+    </section>
+    <section class="panel mb-4"><div class="panel-heading"><div><h2>Assigned workout plans</h2><p>Your trainer's exercises, sets, repetitions and demo videos.</p></div></div><div id="member-workout-plans" class="workout-plan-grid">Loading workout plans…</div></section>
+    <section class="panel"><div class="panel-heading"><div><h2>Payment history</h2><p>Your recorded subscription payments.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Payment</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead><tbody id="member-payments"><tr><td colspan="5" class="text-secondary">Loading payments…</td></tr></tbody></table></div></section>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>
+</body>
+</html>

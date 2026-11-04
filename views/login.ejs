@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | FitTrack</title>
+  <link href="/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="auth-page" data-page="login">
+  <main class="auth-shell">
+    <section class="auth-brand-panel">
+      <div class="brand-mark">F</div>
+      <p class="eyebrow">FITTRACK MANAGEMENT</p>
+      <h1>One place to manage your gym.</h1>
+      <p class="muted-light">Memberships, trainers, payments and workout plans in one connected workspace.</p>
+      <div class="brand-decoration"><span></span><span></span><span></span></div>
+    </section>
+    <section class="auth-form-panel">
+      <div class="auth-form-wrap">
+        <p class="eyebrow text-primary">WELCOME BACK</p>
+        <h2>Sign in</h2>
+        <p class="text-secondary mb-4">Use your approved FitTrack account to continue.</p>
+        <% if (typeof pageError !== 'undefined') { %><div class="alert alert-warning"><%= pageError %></div><% } %>
+        <div id="form-message" class="alert d-none" role="alert"></div>
+        <form id="login-form" novalidate>
+          <div class="mb-3">
+            <label class="form-label" for="identity">Username or email</label>
+            <input class="form-control form-control-lg" id="identity" name="identity" autocomplete="username" required maxlength="255" placeholder="you@example.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="btn btn-primary btn-lg w-100 mt-2" type="submit">Sign in <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="small text-secondary mt-4 mb-0">New to FitTrack? <a href="/register" class="fw-semibold">Create an account</a></p>
+        <p class="tiny-note mt-4">Accounts must be approved by the relevant administrator before sign-in.</p>
+      </div>
+    </section>
+  </main>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script>
+  <script src="/js/app.js" defer></script>
+</body>
+</html>
