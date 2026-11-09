@@ -1,10 +1,12 @@
 const db = require('../config/db');
 const crypto = require('crypto');
 
+const PLATFORM_PAYMENT_METHODS = ['UPI', 'Card', 'NetBanking', 'Bank Transfer', 'Cash'];
+const SALARY_PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
+
 async function getOwnerGymId(userId, executor = db) {
   const [rows] = await executor.execute('SELECT gym_id FROM gyms WHERE owner_id = ? LIMIT 1', [userId]);
-  if (!rows.length) return null;
-  return rows[0].gym_id;
+  return rows[0]?.gym_id || null;
 }
 
 async function getPlatformSubscriptionSummary(gymId, executor = db) {
@@ -16,7 +18,7 @@ async function getPlatformSubscriptionSummary(gymId, executor = db) {
             s.payment_method, s.transaction_reference, s.payment_status,
             'Active' AS subscription_status
      FROM gym_owner_subscriptions s
-     WHERE s.gym_id = ? AND s.payment_status = 'Paid'
+     WHERE s.gym_id = ? AND s.payment_status = 'Paid' AND s.owner_review_status = 'Approved'
        AND CURDATE() BETWEEN s.start_date AND s.end_date
      ORDER BY s.end_date DESC, s.owner_subscription_id DESC
      LIMIT 1`,
@@ -34,8 +36,10 @@ async function getPlatformSubscriptionSummary(gymId, executor = db) {
             DATE_FORMAT(s.start_date, '%Y-%m-%d') AS start_date,
             DATE_FORMAT(s.end_date, '%Y-%m-%d') AS end_date,
             s.payment_method, s.transaction_reference, s.payment_status,
+            s.owner_review_status, s.refund_status,
             DATE_FORMAT(s.paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
             CASE
+              WHEN s.owner_review_status = 'Pending' THEN 'Awaiting approval'
               WHEN s.payment_status <> 'Paid' THEN s.payment_status
               WHEN CURDATE() BETWEEN s.start_date AND s.end_date THEN 'Active'
               ELSE 'Expired'
@@ -47,11 +51,7 @@ async function getPlatformSubscriptionSummary(gymId, executor = db) {
     [gymId]
   );
 
-  return {
-    current: activeRows[0] || null,
-    availablePlans,
-    history
-  };
+  return { current: activeRows[0] || null, availablePlans, history };
 }
 
 async function getDashboard(req, res, next) {
@@ -60,11 +60,20 @@ async function getDashboard(req, res, next) {
     if (!gymId) return res.status(404).json({ message: 'No gym profile is linked to this owner account.' });
 
     const [[memberCount]] = await db.execute('SELECT COUNT(*) AS total FROM members WHERE gym_id = ?', [gymId]);
-    const [[trainerCount]] = await db.execute('SELECT COUNT(*) AS total FROM trainers WHERE gym_id = ?', [gymId]);
-    const [[revenue]] = await db.execute(
-      "SELECT COALESCE(SUM(p.amount), 0) AS total FROM payments p INNER JOIN members m ON m.mem_id = p.mem_id WHERE m.gym_id = ? AND p.pay_status = 'Paid'",
-      [gymId]
+    const [[trainerCount]] = await db.execute(
+      `SELECT COUNT(*) AS total FROM trainers t INNER JOIN users u ON u.user_id = t.user_id
+       WHERE t.gym_id = ? AND u.account_status = 'Approved'`, [gymId]
     );
+    const [[grossRevenue]] = await db.execute(
+      `SELECT COALESCE(SUM(p.amount), 0) AS total
+       FROM payments p INNER JOIN members m ON m.mem_id = p.mem_id
+       WHERE m.gym_id = ? AND p.pay_status = 'Paid'`, [gymId]
+    );
+    const [[salaryOutflow]] = await db.execute(
+      `SELECT COALESCE(SUM(amount_paid), 0) AS total
+       FROM trainer_salary_payments WHERE gym_id = ? AND payment_status = 'Paid'`, [gymId]
+    );
+    const netRevenue = Number(grossRevenue.total || 0) - Number(salaryOutflow.total || 0);
     const [[pendingCount]] = await db.execute(
       `SELECT COUNT(*) AS total FROM users u
        LEFT JOIN members m ON m.user_id = u.user_id
@@ -112,12 +121,39 @@ async function getDashboard(req, res, next) {
       'SELECT video_id, workout_name, target_muscle_group, video_url FROM workout_videos WHERE gym_id = ? ORDER BY video_id DESC',
       [gymId]
     );
+    const [trainers] = await db.execute(
+      `SELECT t.train_id, t.first_name, t.last_name, t.email, t.emp_type,
+              t.base_salary, t.commission_rate, u.account_status
+       FROM trainers t INNER JOIN users u ON u.user_id = t.user_id
+       WHERE t.gym_id = ? AND u.account_status = 'Approved'
+       ORDER BY t.first_name, t.last_name`,
+      [gymId]
+    );
+    const [salaryPayments] = await db.execute(
+      `SELECT sp.salary_payment_id, sp.train_id, sp.salary_month,
+              sp.base_salary_snapshot, sp.amount_paid, sp.pay_date,
+              sp.pay_method, sp.payment_status, sp.transaction_reference,
+              t.first_name, t.last_name
+       FROM trainer_salary_payments sp
+       INNER JOIN trainers t ON t.train_id = sp.train_id
+       WHERE sp.gym_id = ?
+       ORDER BY sp.salary_month DESC, sp.pay_date DESC
+       LIMIT 100`,
+      [gymId]
+    );
     const platformSubscription = await getPlatformSubscriptionSummary(gymId);
 
     res.json({
       gym: gymRows[0],
-      stats: { members: memberCount.total, trainers: trainerCount.total, revenue: revenue.total, pendingApprovals: pendingCount.total },
-      pendingUsers, plans, payments, attendance, videos, platformSubscription
+      stats: {
+        members: memberCount.total,
+        trainers: trainerCount.total,
+        grossRevenue: grossRevenue.total || 0,
+        trainerSalaryPaid: salaryOutflow.total || 0,
+        revenue: netRevenue,
+        pendingApprovals: pendingCount.total
+      },
+      pendingUsers, plans, payments, attendance, videos, trainers, salaryPayments, platformSubscription
     });
   } catch (error) {
     next(error);
@@ -160,7 +196,6 @@ async function reviewUser(req, res, next) {
     if (action === 'approve') {
       await connection.execute("UPDATE users SET account_status = 'Approved' WHERE user_id = ?", [userId]);
     } else {
-      // Remove the operational profile, but retain the rejected users row for audit.
       if (isMember) {
         await connection.execute('DELETE FROM members WHERE user_id = ? AND gym_id = ?', [userId, gymId]);
       } else {
@@ -182,9 +217,7 @@ async function reviewUser(req, res, next) {
 async function payPlatformSubscription(req, res, next) {
   const platformPlanId = Number(req.body.platform_plan_id);
   const paymentMethod = String(req.body.payment_method || '').trim();
-  const allowedMethods = ['UPI', 'Card', 'NetBanking', 'Bank Transfer', 'Cash'];
-
-  if (!Number.isInteger(platformPlanId) || platformPlanId <= 0 || !allowedMethods.includes(paymentMethod)) {
+  if (!Number.isInteger(platformPlanId) || platformPlanId <= 0 || !PLATFORM_PAYMENT_METHODS.includes(paymentMethod)) {
     return res.status(400).json({ message: 'Choose a valid platform subscription plan and payment method.' });
   }
 
@@ -193,8 +226,7 @@ async function payPlatformSubscription(req, res, next) {
     await connection.beginTransaction();
     const [ownerRows] = await connection.execute(
       `SELECT g.gym_id
-       FROM gyms g
-       INNER JOIN users u ON u.user_id = g.owner_id
+       FROM gyms g INNER JOIN users u ON u.user_id = g.owner_id
        WHERE u.user_id = ? AND u.role = 'Gym_owners' AND u.account_status = 'Approved'
        LIMIT 1 FOR UPDATE`,
       [req.user.user_id]
@@ -204,15 +236,10 @@ async function payPlatformSubscription(req, res, next) {
       return res.status(403).json({ message: 'Only an approved Gym Owner with a registered gym can purchase a platform subscription.' });
     }
     const gymId = ownerRows[0].gym_id;
-
-    // Serialize concurrent purchases for this gym so two requests cannot create overlapping terms.
     await connection.execute('SELECT gym_id FROM gyms WHERE gym_id = ? FOR UPDATE', [gymId]);
-
     const [planRows] = await connection.execute(
       `SELECT platform_plan_id, plan_name, duration_months, price
-       FROM platform_subscription_plans
-       WHERE platform_plan_id = ? AND is_active = 1
-       FOR UPDATE`,
+       FROM platform_subscription_plans WHERE platform_plan_id = ? AND is_active = 1 FOR UPDATE`,
       [platformPlanId]
     );
     if (!planRows.length) {
@@ -220,40 +247,27 @@ async function payPlatformSubscription(req, res, next) {
       return res.status(404).json({ message: 'This subscription plan is unavailable. Refresh the page and choose an active plan.' });
     }
     const plan = planRows[0];
-
-    // A renewal starts after the latest paid term, or today when there is no current term.
     const [[dateRow]] = await connection.execute(
       `SELECT DATE_FORMAT(
                 GREATEST(CURDATE(), COALESCE(DATE_ADD(MAX(end_date), INTERVAL 1 DAY), CURDATE())),
                 '%Y-%m-%d'
               ) AS start_date
        FROM gym_owner_subscriptions
-       WHERE gym_id = ? AND payment_status = 'Paid'`,
+       WHERE gym_id = ? AND payment_status = 'Paid' AND owner_review_status = 'Approved'`,
       [gymId]
     );
     const startDate = dateRow.start_date;
     const transactionReference = `DEMO-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-
     const [result] = await connection.execute(
       `INSERT INTO gym_owner_subscriptions
          (gym_id, platform_plan_id, plan_name_snapshot, duration_months_snapshot,
           amount, start_date, end_date, payment_status, payment_method,
-          transaction_reference, paid_at)
+          transaction_reference, paid_at, owner_review_status, refund_status)
        VALUES (?, ?, ?, ?, ?, ?,
                DATE_SUB(DATE_ADD(?, INTERVAL ? MONTH), INTERVAL 1 DAY),
-               'Paid', ?, ?, NOW())`,
-      [
-        gymId,
-        plan.platform_plan_id,
-        plan.plan_name,
-        plan.duration_months,
-        plan.price,
-        startDate,
-        startDate,
-        plan.duration_months,
-        paymentMethod,
-        transactionReference
-      ]
+               'Paid', ?, ?, NOW(), 'Approved', 'NotApplicable')`,
+      [gymId, plan.platform_plan_id, plan.plan_name, plan.duration_months,
+        plan.price, startDate, startDate, plan.duration_months, paymentMethod, transactionReference]
     );
 
     await connection.commit();
@@ -264,6 +278,72 @@ async function payPlatformSubscription(req, res, next) {
     });
   } catch (error) {
     await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+async function payTrainerSalary(req, res, next) {
+  const trainerId = Number(req.params.trainId);
+  const salaryMonthText = String(req.body.salary_month || '').trim();
+  const paymentMethod = String(req.body.payment_method || '').trim();
+  if (!Number.isInteger(trainerId) || trainerId <= 0 || !/^\d{4}-(0[1-9]|1[0-2])$/.test(salaryMonthText) || !SALARY_PAYMENT_METHODS.includes(paymentMethod)) {
+    return res.status(400).json({ message: 'Choose a valid trainer, salary month and payment method.' });
+  }
+
+  const salaryMonth = `${salaryMonthText}-01`;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [[monthCheck]] = await connection.execute("SELECT DATE_FORMAT(CURDATE(), '%Y-%m') AS current_month");
+    if (salaryMonthText > monthCheck.current_month) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Salary cannot be paid for a future month.' });
+    }
+    const gymId = await getOwnerGymId(req.user.user_id, connection);
+    if (!gymId) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'No gym is linked to this owner.' });
+    }
+
+    const [trainerRows] = await connection.execute(
+      `SELECT t.train_id, t.base_salary, t.first_name, t.last_name
+       FROM trainers t INNER JOIN users u ON u.user_id = t.user_id
+       WHERE t.train_id = ? AND t.gym_id = ? AND u.account_status = 'Approved'
+       FOR UPDATE`,
+      [trainerId, gymId]
+    );
+    if (!trainerRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Approved trainer was not found in your gym.' });
+    }
+    const trainer = trainerRows[0];
+    const salary = Number(trainer.base_salary);
+    if (!Number.isFinite(salary) || salary <= 0) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'This trainer has no positive base salary recorded. Update the trainer salary before paying.' });
+    }
+
+    const transactionReference = `SAL-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    await connection.execute(
+      `INSERT INTO trainer_salary_payments
+         (gym_id, train_id, salary_month, base_salary_snapshot, amount_paid,
+          pay_date, pay_method, payment_status, transaction_reference)
+       VALUES (?, ?, ?, ?, ?, NOW(), ?, 'Paid', ?)`,
+      [gymId, trainerId, salaryMonth, salary, salary, paymentMethod, transactionReference]
+    );
+    await connection.commit();
+    res.status(201).json({
+      message: `Salary of ₹${salary.toFixed(2)} recorded for ${salaryMonthText}. It has been deducted from gym net revenue.`,
+      amount_paid: salary,
+      transaction_reference: transactionReference
+    });
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Salary for this trainer and month has already been paid.' });
+    }
     next(error);
   } finally {
     connection.release();
@@ -314,4 +394,11 @@ async function createWorkoutVideo(req, res, next) {
   }
 }
 
-module.exports = { getDashboard, reviewUser, createMembershipPlan, createWorkoutVideo, payPlatformSubscription };
+module.exports = {
+  getDashboard,
+  reviewUser,
+  payPlatformSubscription,
+  payTrainerSalary,
+  createMembershipPlan,
+  createWorkoutVideo
+};

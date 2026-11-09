@@ -76,7 +76,7 @@
     const normalized = String(status || 'Pending');
     const css = normalized === 'Approved' || normalized === 'Paid' || normalized === 'Active' || normalized === 'Completed'
       ? 'status-success'
-      : normalized === 'Rejected' || normalized === 'Failed' || normalized === 'Expired'
+      : normalized === 'Rejected' || normalized === 'Failed' || normalized === 'Expired' || normalized === 'Refunded'
         ? 'status-danger' : 'status-pending';
     return `<span class="status-pill ${css}">${escapeHtml(normalized)}</span>`;
   }
@@ -116,8 +116,8 @@
 
   function requiredFieldsForRole(role) {
     const names = {
-      Gym_owners: ['gym_name', 'location'],
-      Trainers: ['first_name', 'last_name', 'gym_id'],
+      Gym_owners: ['gym_name', 'location', 'platform_plan_id', 'payment_method'],
+      Trainers: ['first_name', 'last_name', 'gym_id', 'base_salary'],
       Members: ['first_name', 'last_name', 'gym_id']
     };
     return names[role] || [];
@@ -149,11 +149,26 @@
     }
   }
 
+  async function loadAvailablePlatformPlans() {
+    const select = $('#registration-platform-plan');
+    if (!select) return;
+    try {
+      const { plans } = await api('/api/auth/platform-plans');
+      select.innerHTML = '<option value="">Choose a platform plan</option>' + plans.map((plan) =>
+        `<option value="${Number(plan.platform_plan_id)}">${escapeHtml(plan.plan_name)} — ${Number(plan.duration_months)} month(s) — ${formatMoney(plan.price)}</option>`
+      ).join('');
+      if (!plans.length) select.innerHTML = '<option value="">No active plans available — contact the Super Admin</option>';
+    } catch (error) {
+      select.innerHTML = '<option value="">Could not load platform plans</option>';
+      showMessage(error.message, 'danger');
+    }
+  }
+
   async function initRegister() {
     const roleSelect = $('#role');
     roleSelect?.addEventListener('change', syncRoleFields);
     syncRoleFields();
-    await loadApprovedGyms();
+    await Promise.all([loadApprovedGyms(), loadAvailablePlatformPlans()]);
 
     $('#register-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -195,14 +210,15 @@
       statCard('Total gyms', data.stats.totalGyms, '⌂'),
       statCard('Approved owners', data.stats.approvedOwners, '✓'),
       statCard('Pending owners', data.stats.pendingOwners, '◷'),
-      statCard('Platform revenue', formatMoney(data.stats.platformRevenue), '₹'),
+      statCard('Net platform revenue', formatMoney(data.stats.platformRevenue), '₹'),
+      statCard('Total refunds', formatMoney(data.stats.totalRefunded), '↩'),
       statCard('Active subscriptions', data.stats.activeSubscriptions, '♧')
     ].join('');
 
     $('#pending-count').textContent = data.pendingOwners.length;
     $('#pending-owners').innerHTML = data.pendingOwners.length ? data.pendingOwners.map((owner) => `
       <article class="approval-card">
-        <div class="approval-main"><div class="avatar-circle">${escapeHtml((owner.gym_name || 'G').slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(owner.gym_name)}</strong><p>${escapeHtml(owner.username)} · ${escapeHtml(owner.email)}</p><small>${escapeHtml(owner.location)} · Account #${owner.user_id}</small></div></div>
+        <div class="approval-main"><div class="avatar-circle">${escapeHtml((owner.gym_name || 'G').slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(owner.gym_name)}</strong><p>${escapeHtml(owner.username)} · ${escapeHtml(owner.email)}</p><small>${escapeHtml(owner.location)} · Account #${owner.user_id}</small><small>Registration payment: ${escapeHtml(owner.plan_name_snapshot || 'No plan')} · ${formatMoney(owner.amount || 0)} · ${statusPill(owner.payment_status || 'Unpaid')}</small></div></div>
         <div class="approval-actions"><button class="btn btn-sm btn-primary" data-admin-action="approve" data-user-id="${owner.user_id}">Approve</button><button class="btn btn-sm btn-outline-danger" data-admin-action="reject" data-user-id="${owner.user_id}">Reject</button></div>
       </article>`).join('') : emptyState('There are no pending Gym Owner registrations.');
 
@@ -232,10 +248,29 @@
         <td>${escapeHtml(payment.plan_name_snapshot)}</td>
         <td><strong>${formatMoney(payment.amount)}</strong></td>
         <td>${escapeHtml(payment.payment_method)}</td>
-        <td>${statusPill(payment.payment_status)}<div class="table-subtext">${escapeHtml(payment.subscription_status)}</div></td>
+        <td>${statusPill(payment.payment_status)}<div class="table-subtext">Owner: ${escapeHtml(payment.owner_review_status)} · Refund: ${escapeHtml(payment.refund_status)}</div><div class="table-subtext">${escapeHtml(payment.subscription_status)}</div></td>
         <td>${formatDate(payment.start_date)} – ${formatDate(payment.end_date)}</td>
-        <td>${formatDate(payment.paid_at)}</td>
-      </tr>`).join('') : renderRows([], 8);
+        <td>${formatDate(payment.paid_at)}${payment.refunded_at ? `<div class="table-subtext">Refunded ${formatDate(payment.refunded_at)}</div>` : ''}</td>
+        <td>${payment.refund_status === 'Available' && payment.payment_status === 'Paid' ? `<button class="btn btn-sm btn-outline-danger" type="button" data-admin-refund="${payment.owner_subscription_id}">Record refund</button>` : payment.refund_reference ? `<span class="small text-secondary">${escapeHtml(payment.refund_reference)}</span>` : '—'}</td>
+      </tr>`).join('') : renderRows([], 9);
+
+    if (!$('#platform-payments-table').dataset.bound) {
+      $('#platform-payments-table').dataset.bound = 'true';
+      $('#platform-payments-table').addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-admin-refund]');
+        if (!button) return;
+        if (!window.confirm('Record this rejected Gym Owner payment as refunded? This updates the demo ledger and reduces net platform revenue. It does not transfer real money.')) return;
+        button.disabled = true;
+        try {
+          const result = await api(`/api/admin/subscriptions/${button.dataset.adminRefund}/refund`, { method: 'PATCH', body: {} });
+          showMessage(result.message);
+          await initSuperAdmin();
+        } catch (error) {
+          showMessage(error.message, 'danger');
+          button.disabled = false;
+        }
+      });
+    }
 
     if (!$('#pending-owners').dataset.bound) {
       $('#pending-owners').dataset.bound = 'true';
@@ -300,7 +335,9 @@
     $('#stats').innerHTML = [
       statCard('Members', data.stats.members, '♙'),
       statCard('Trainers', data.stats.trainers, '✦'),
-      statCard('Paid revenue', formatMoney(data.stats.revenue), '₹'),
+      statCard('Member payments', formatMoney(data.stats.grossRevenue), '₹'),
+      statCard('Trainer salaries paid', formatMoney(data.stats.trainerSalaryPaid), '−'),
+      statCard('Net gym revenue', formatMoney(data.stats.revenue), '₹'),
       statCard('Pending approvals', data.stats.pendingApprovals, '◷')
     ].join('');
 
@@ -334,6 +371,27 @@
           <td>${formatDate(item.paid_at)}</td>
         </tr>`).join('')
       : renderRows([], 7);
+    const now = new Date();
+    const defaultSalaryMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const salaryMonthInput = $('#salary-month');
+    if (salaryMonthInput) {
+      salaryMonthInput.max = defaultSalaryMonth;
+      if (!salaryMonthInput.value) salaryMonthInput.value = defaultSalaryMonth;
+    }
+    const selectedSalaryMonth = salaryMonthInput?.value || defaultSalaryMonth;
+    $('#trainer-salary-table').innerHTML = data.trainers.length ? data.trainers.map((trainer) => {
+      const paid = data.salaryPayments.find((item) => Number(item.train_id) === Number(trainer.train_id) && String(item.salary_month).slice(0, 7) === selectedSalaryMonth && item.payment_status === 'Paid');
+      return `<tr>
+        <td><strong>${escapeHtml(trainer.first_name)} ${escapeHtml(trainer.last_name)}</strong><div class="table-subtext">${escapeHtml(trainer.email || '')}</div></td>
+        <td>${formatMoney(trainer.base_salary)}</td>
+        <td>${paid ? statusPill('Paid') : statusPill('Due')}</td>
+        <td>${paid ? `${formatMoney(paid.amount_paid)} · ${formatDate(paid.pay_date)}` : `<button class="btn btn-sm btn-primary" type="button" data-pay-trainer-salary="${trainer.train_id}" ${Number(trainer.base_salary) <= 0 ? 'disabled' : ''}>Pay salary</button>`}</td>
+      </tr>`;
+    }).join('') : renderRows([], 4);
+    $('#trainer-salary-history').innerHTML = data.salaryPayments.length ? data.salaryPayments.map((item) => `
+      <tr><td>${escapeHtml(item.first_name)} ${escapeHtml(item.last_name)}</td><td>${String(item.salary_month).slice(0, 7)}</td><td>${formatMoney(item.amount_paid)}</td><td>${escapeHtml(item.pay_method)}</td><td>${statusPill(item.payment_status)}</td><td>${formatDate(item.pay_date)}</td><td>${escapeHtml(item.transaction_reference)}</td></tr>
+    `).join('') : renderRows([], 7);
+
     $('#pending-count').textContent = data.pendingUsers.length;
     $('#pending-users').innerHTML = data.pendingUsers.length ? data.pendingUsers.map((person) => `
       <article class="approval-card"><div class="approval-main"><div class="avatar-circle">${escapeHtml((person.first_name || person.username).slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(person.first_name)} ${escapeHtml(person.last_name)}</strong><p>${escapeHtml(person.username)} · ${escapeHtml(person.profile_email)}</p><small>${escapeHtml(person.role === 'Members' ? 'Member' : 'Trainer')} · Account #${person.user_id}</small></div></div>
@@ -342,6 +400,33 @@
     $('#videos-list').innerHTML = data.videos.length ? data.videos.map((video) => `<div class="compact-item"><div><strong>${escapeHtml(video.workout_name)}</strong><small>${escapeHtml(video.target_muscle_group || 'General')}</small></div><a class="small" href="${escapeHtml(safeUrl(video.video_url))}" target="_blank" rel="noopener noreferrer">Open video ↗</a></div>`).join('') : emptyState('No workout videos added yet.');
     $('#payments-table').innerHTML = data.payments.length ? data.payments.map((payment) => `<tr><td>${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</td><td>${escapeHtml(payment.plan_name)}</td><td>${formatMoney(payment.amount)}</td><td>${escapeHtml(payment.pay_method)}</td><td>${statusPill(payment.pay_status)}</td><td>${formatDate(payment.pay_date)}</td></tr>`).join('') : renderRows([], 6);
     $('#attendance-table').innerHTML = data.attendance.length ? data.attendance.map((row) => `<tr><td>${escapeHtml(row.first_name)} ${escapeHtml(row.last_name)}</td><td>${formatDate(row.date)}</td><td>${formatTime(row.check_in)}</td><td>${formatTime(row.check_out)}</td></tr>`).join('') : renderRows([], 4);
+
+    if (salaryMonthInput && !salaryMonthInput.dataset.bound) {
+      salaryMonthInput.dataset.bound = 'true';
+      salaryMonthInput.addEventListener('change', () => initOwner().catch((error) => showMessage(error.message, 'danger')));
+    }
+    if (!$('#trainer-salary-table').dataset.bound) {
+      $('#trainer-salary-table').dataset.bound = 'true';
+      $('#trainer-salary-table').addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-pay-trainer-salary]');
+        if (!button) return;
+        const month = $('#salary-month').value;
+        const method = $('#salary-payment-method').value;
+        if (!month) return showMessage('Choose the salary month first.', 'warning');
+        if (!window.confirm(`Record the trainer's base salary payment for ${month}? The amount is read from the salary saved in the trainer profile.`)) return;
+        button.disabled = true;
+        try {
+          const result = await api(`/api/owner/trainers/${button.dataset.payTrainerSalary}/salary`, {
+            method: 'POST', body: { salary_month: month, payment_method: method }
+          });
+          showMessage(result.message);
+          await initOwner();
+        } catch (error) {
+          showMessage(error.message, 'danger');
+          button.disabled = false;
+        }
+      });
+    }
 
     if (!$('#platform-plan-list').dataset.bound) {
       $('#platform-plan-list').dataset.bound = 'true';
@@ -422,16 +507,19 @@
     $('#requests-count').textContent = data.requests.filter((request) => ['Pending', 'Accepted'].includes(request.status)).length;
     $('#workout-requests').innerHTML = data.requests.length ? data.requests.map((request) => {
       const completedPlan = request.status === 'Completed';
-      const requestIsOpen = ['Pending', 'Accepted'].includes(request.status);
+      const requestIsPending = request.status === 'Pending';
+      const requestIsAccepted = request.status === 'Accepted';
       return `<article class="request-card">
         <div class="request-card-heading"><div><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong><p>${escapeHtml(request.email)} · Requested ${formatDate(request.request_date)}</p></div>${statusPill(request.status)}</div>
         <p class="request-notes">${escapeHtml(request.member_notes || 'No additional notes provided.')}</p>
-        ${requestIsOpen ? `<div class="request-actions">${request.status === 'Pending' ? `<button class="btn btn-sm btn-outline-primary" data-request-status="Accepted" data-request-id="${request.request_id}">Accept</button><button class="btn btn-sm btn-outline-danger" data-request-status="Rejected" data-request-id="${request.request_id}">Reject</button>` : ''}<button class="btn btn-sm btn-primary" data-toggle-plan="${request.request_id}">Create workout plan</button></div>
+        ${requestIsPending ? `<div class="request-actions"><button class="btn btn-sm btn-outline-primary" data-request-status="Accepted" data-request-id="${request.request_id}">Accept request</button><button class="btn btn-sm btn-outline-danger" data-request-status="Rejected" data-request-id="${request.request_id}">Reject</button></div>` : ''}
+        ${requestIsAccepted ? `<div class="request-actions"><button class="btn btn-sm btn-primary" data-toggle-plan="${request.request_id}">Create and send workout plan</button></div>
         <form class="plan-builder" data-plan-form="${request.request_id}" hidden>
           <div><label class="form-label">Plan title</label><input class="form-control" name="plan_title" required maxlength="150" placeholder="Beginner strength plan"></div>
           <div class="exercise-list">${data.videos.length ? exerciseRow(data.videos) : '<p class="text-danger small">Ask the gym owner to add workout videos before assigning a plan.</p>'}</div>
-          ${data.videos.length ? `<div class="builder-footer"><button class="btn btn-sm btn-outline-secondary" type="button" data-add-exercise="${request.request_id}">+ Add exercise</button><button class="btn btn-sm btn-primary" type="submit">Assign plan</button></div>` : ''}
-        </form>` : completedPlan ? `<p class="small text-success mb-0">Plan assigned: ${escapeHtml(request.plan_title || 'Workout plan')}</p>` : ''}
+          ${data.videos.length ? `<div class="builder-footer"><button class="btn btn-sm btn-outline-secondary" type="button" data-add-exercise="${request.request_id}">+ Add exercise</button><button class="btn btn-sm btn-primary" type="submit">Assign and send to member</button></div>` : ''}
+        </form>` : ''}
+        ${completedPlan ? `<p class="small text-success mb-0">Plan sent to member: ${escapeHtml(request.plan_title || 'Workout plan')}</p>` : ''}
       </article>`;
     }).join('') : emptyState('No workout requests yet.');
 

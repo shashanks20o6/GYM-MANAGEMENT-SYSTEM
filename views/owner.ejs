@@ -10,7 +10,7 @@
   <main class="dashboard-container">
     <div class="page-heading"><div><p class="eyebrow text-primary">GYM WORKSPACE</p><h1 id="gym-title">Gym Owner Dashboard</h1><p class="text-secondary" id="gym-subtitle">Manage your members, trainers, plans and day-to-day operations.</p></div><span class="status-chip">Owner workspace</span></div>
     <div id="form-message" class="alert d-none" role="alert"></div>
-    <section id="stats" class="stats-grid mb-4"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
+    <section id="stats" class="stats-grid mb-4"><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div><div class="stat-card skeleton"></div></section>
 
     <section class="panel mb-4">
       <div class="panel-heading"><div><h2>FitTrack platform subscription</h2><p>This is your Gym Owner subscription to the FitTrack platform. It is separate from the membership plans you sell to your own members.</p></div><span id="platform-subscription-status" class="count-pill">Loading…</span></div>
@@ -49,7 +49,18 @@
         <div class="subsection-title mt-4">Workout library</div><div id="videos-list" class="compact-list"><p class="text-secondary">Loading videos…</p></div>
       </section>
     </div>
-    <section class="panel mb-4"><div class="panel-heading"><div><h2>Recent payments</h2><p>Payment records for your gym.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead><tbody id="payments-table"><tr><td colspan="6" class="text-secondary">Loading payments…</td></tr></tbody></table></div></section>
+    <section class="panel mb-4">
+      <div class="panel-heading"><div><h2>Trainer salary payments</h2><p>Pay each approved trainer the base salary saved during trainer registration. The server reads the amount from the trainer record; it cannot be edited in this payment form.</p></div></div>
+      <div class="alert alert-info small">Salary payments are recorded as demo ledger entries. Each trainer can be paid once per month. A recorded salary payment is deducted from this gym's net revenue.</div>
+      <div class="form-row mb-3">
+        <div><label class="form-label" for="salary-month">Salary month</label><input class="form-control" type="month" id="salary-month"></div>
+        <div><label class="form-label" for="salary-payment-method">Payment method</label><select class="form-select" id="salary-payment-method"><option value="Bank Transfer">Bank Transfer (demo)</option><option value="UPI">UPI (demo)</option><option value="Cash">Cash (demo)</option><option value="Card">Card (demo)</option></select></div>
+      </div>
+      <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Trainer</th><th>Registered base salary</th><th>Selected month</th><th>Action / paid amount</th></tr></thead><tbody id="trainer-salary-table"><tr><td colspan="4" class="text-secondary">Loading trainer salaries…</td></tr></tbody></table></div>
+      <div class="subsection-title mt-4">Salary payment history</div>
+      <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Trainer</th><th>Salary month</th><th>Amount</th><th>Method</th><th>Status</th><th>Paid on</th><th>Reference</th></tr></thead><tbody id="trainer-salary-history"><tr><td colspan="7" class="text-secondary">Loading salary history…</td></tr></tbody></table></div>
+    </section>
+    <section class="panel mb-4"><div class="panel-heading"><div><h2>Recent payments</h2><p>Payment records for your gym. Net revenue on the dashboard deducts recorded trainer salaries.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead><tbody id="payments-table"><tr><td colspan="6" class="text-secondary">Loading payments…</td></tr></tbody></table></div></section>
     <section class="panel"><div class="panel-heading"><div><h2>Trainer attendance</h2><p>Latest clock-in and clock-out records.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Trainer</th><th>Date</th><th>Check-in</th><th>Check-out</th></tr></thead><tbody id="attendance-table"><tr><td colspan="4" class="text-secondary">Loading attendance…</td></tr></tbody></table></div></section>
   </main>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js" defer></script><script src="/js/app.js" defer></script>

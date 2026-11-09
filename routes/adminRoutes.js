@@ -6,6 +6,7 @@ const router = express.Router();
 router.use(requireRole('super_admin'));
 router.get('/overview', controller.getOverview);
 router.patch('/owners/:userId/:action', controller.reviewOwner);
+router.patch('/subscriptions/:subscriptionId/refund', controller.recordOwnerRefund);
 router.post('/subscription-plans', controller.createSubscriptionPlan);
 router.patch('/subscription-plans/:planId/status', controller.setSubscriptionPlanStatus);
 

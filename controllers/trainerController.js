@@ -21,10 +21,11 @@ async function getDashboard(req, res, next) {
     const [requests] = await db.execute(
       `SELECT r.request_id, r.request_date, r.member_notes, r.status,
               m.mem_id, m.first_name, m.last_name, m.phone, m.email,
-              u.username AS member_username
+              u.username AS member_username, p.plan_title
        FROM workout_requests r
        INNER JOIN members m ON m.mem_id = r.mem_id
        INNER JOIN users u ON u.user_id = m.user_id
+       LEFT JOIN assigned_workout_plans p ON p.request_id = r.request_id
        WHERE r.train_id = ? AND u.account_status = 'Approved'
        ORDER BY r.request_date DESC`,
       [trainer.train_id]
@@ -136,9 +137,9 @@ async function createWorkoutPlan(req, res, next) {
        WHERE request_id = ? AND train_id = ? FOR UPDATE`,
       [requestId, trainer.train_id]
     );
-    if (!requestRows.length || !['Pending', 'Accepted'].includes(requestRows[0].status)) {
+    if (!requestRows.length || requestRows[0].status !== 'Accepted') {
       await connection.rollback();
-      return res.status(404).json({ message: 'This request is unavailable or already has a workout plan.' });
+      return res.status(409).json({ message: 'Accept the workout request before assigning a plan, or check whether a plan was already assigned.' });
     }
     const [existingPlan] = await connection.execute(
       'SELECT plan_id FROM assigned_workout_plans WHERE request_id = ?',
@@ -192,7 +193,7 @@ async function createWorkoutPlan(req, res, next) {
     }
     await connection.execute("UPDATE workout_requests SET status = 'Completed' WHERE request_id = ?", [requestId]);
     await connection.commit();
-    res.status(201).json({ message: 'Workout plan assigned to the member.', plan_id: planResult.insertId });
+    res.status(201).json({ message: 'Workout plan assigned and made available in the member dashboard.', plan_id: planResult.insertId });
   } catch (error) {
     await connection.rollback();
     next(error);

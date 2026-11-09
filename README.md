@@ -1,146 +1,101 @@
-# FitTrack — Gym Management System
+# FitTrack Gym Management System
 
-A multi-role gym management mini project using Node.js, Express 5, EJS, Bootstrap 5, Vanilla JavaScript and MySQL (`mysql2/promise`). The project keeps the 12 business tables in the supplied ER diagram and adds two separate tables for Gym Owner platform billing.
+A multi-role Gym Management System built with Node.js, Express, EJS, Bootstrap 5, vanilla JavaScript and MySQL (`mysql2/promise`).
 
-## 1. Requirements
+## Existing database
 
-- Node.js 20 or newer
-- MySQL 8.0 or newer (MySQL Workbench is optional)
-- npm
+This project uses the `gym_db` MySQL database. The original 12 gym-management tables remain in place. Do not drop the database or rerun a destructive schema script over existing data.
 
-## 2. Create the database
+For an existing installation that already ran `sql/migrations/001_platform_subscriptions.sql`, run this new migration once in MySQL Workbench:
 
-Open MySQL Workbench, open `sql/schema.sql`, and execute the complete script. It creates the `gym_db` database and the 12 application tables. The session middleware automatically creates one additional technical table named `sessions`; it stores signed-in sessions and is not an extra business entity in your ER diagram.
+```text
+sql/migrations/002_registration_refunds_and_trainer_payroll.sql
+```
 
-> The script uses `CREATE TABLE IF NOT EXISTS`, so it does not drop existing tables or dummy data. It will not alter a table that already exists; check that your existing columns and ENUM values match the application. If you already created the original 12 tables, do not rerun the base schema just for the new platform billing feature; run the migration described below.
+It adds approval/refund tracking fields to `gym_owner_subscriptions` and creates `trainer_salary_payments`.
 
-## 3. Configure `.env`
+## New workflows
 
-Copy `.env.example` to `.env`, then fill in the values in `.env`. In PowerShell, run `Copy-Item .env.example .env`. Example for a local MySQL server:
+### Gym Owner paid registration
+
+1. Super Admin creates one or more platform subscription plans.
+2. The Gym Owner selects a plan and a demo payment method during registration.
+3. The system creates the user, gym and paid platform-subscription record in one database transaction.
+4. The Gym Owner account remains `Pending`; they cannot log in until the Super Admin approves it.
+5. On approval, the subscription term starts on the approval date.
+6. On rejection, the gym and payment history are retained. The payment becomes eligible for a refund record.
+7. The Super Admin can choose **Record refund** in platform payment history. The payment changes from `Paid` to `Refunded`, reducing net platform revenue.
+
+### Trainer monthly salary
+
+- Trainer registration captures a positive monthly `base_salary`.
+- A Gym Owner can record that trainer's salary for a selected month.
+- The server reads the salary from the trainer's saved database record; the browser cannot choose the amount.
+- The unique key on `(train_id, salary_month)` prevents a duplicate payment for the same trainer and month.
+- Gym net revenue is calculated as paid member payments minus recorded paid trainer salaries.
+
+### Workout request and delivery
+
+1. A member submits a request to an approved trainer.
+2. The trainer must accept or reject the request.
+3. Only an accepted request can receive a workout plan.
+4. The trainer adds exercises, picks videos from the gym's video library, and specifies workout section, sets and reps.
+5. Assignment marks the request `Completed`; the plan and linked video URLs appear in the member dashboard.
+
+## Demo-payment limitation
+
+Payments and refunds in this project are demo ledger records. Selecting UPI/Card/Net Banking/Cash does not move real funds. Before collecting real money, integrate a payment gateway, verify payment callbacks/webhooks on the server, and issue refunds through the gateway's refund API. Do not treat a client-side success response as proof of an actual payment.
+
+## Environment
+
+Copy `.env.example` to `.env` and fill in your own MySQL settings and a random session secret. Never commit `.env` to GitHub.
 
 ```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=your_mysql_password
+DB_PASSWORD=
 DB_NAME=gym_db
-SESSION_SECRET=paste_a_long_random_secret_here
+SESSION_SECRET=
 PORT=8080
 NODE_ENV=development
 ```
 
-Generate a session secret in PowerShell:
-
-```powershell
-node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-```
-
-Use the generated value for `SESSION_SECRET`. Do not commit `.env` to Git.
-
-## 4. Install and start
-
-From the project root (`gym-management-system`):
+## Install and run
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Open `http://localhost:8080` in your browser. For a normal start without auto-reload, use `npm start`.
+Open `http://localhost:8080`.
 
-## 5. Create the first Super Admin
+## Super Admin
 
-Public registration intentionally does not offer the Super Admin role. Create the first administrator from PowerShell:
+If a Super Admin has not already been created, use the project's setup script:
 
 ```powershell
-npm run create-admin -- superadmin admin@example.com "ChooseAStrongPassword123"
+npm run create-admin -- superadmin admin@example.com "StrongPassword123"
 ```
 
-Sign in at `/login`. As Super Admin, approve Gym Owner registrations. A Gym Owner can then approve their own gym's pending Members and Trainers.
+## Main test sequence
 
-## 6. Registration and approval workflow
+1. Sign in as Super Admin and create a platform subscription plan.
+2. Register a new Gym Owner and select the plan/payment method.
+3. Confirm the registration payment appears in Super Admin platform payments and net platform revenue.
+4. Approve the owner; confirm the term begins on approval date and the owner can log in.
+5. Register a second Gym Owner and reject that registration. Record a refund and confirm net platform revenue decreases by the refunded amount.
+6. As the approved owner, approve a trainer with a positive base salary and a member.
+7. Create a member membership plan; let the member purchase it.
+8. Pay the trainer's salary for a month and verify net gym revenue = member payments - trainer salary payments.
+9. Have the member submit a workout request; accept it as trainer; add exercises/videos and assign the plan. Refresh the member dashboard and confirm the plan appears.
 
-1. A Gym Owner registers with gym details. A pending user and linked `gyms` row are created in one database transaction.
-2. Super Admin approves or rejects the Gym Owner. A rejected owner keeps the audit row in `users`, while the unapproved `gyms` profile is removed.
-3. Only gyms whose owner account is `Approved` appear in the Member and Trainer registration dropdowns. The ER diagram has no `gym_status` column, so the linked owner's account status is used as the approval source of truth.
-4. A Member or Trainer registers against one approved `gym_id`. The user and child profile are inserted in one transaction.
-5. Gym Owner approval/rejection is restricted to pending Member/Trainer profiles linked to that owner's `gym_id`. Rejection removes the operational child row but retains the rejected `users` row for audit.
+## Key folders
 
-## 7. Main features
-
-- **Super Admin:** review Gym Owners, view gyms and owner statuses, create/activate/deactivate Gym Owner platform subscription plans, view platform payment history and total platform subscription revenue.
-- **Gym Owner:** purchase/renew a FitTrack platform subscription, view its active/expired period and payment history; approve Members/Trainers for their own gym, create membership plans and workout videos, review member payments and trainer attendance.
-- **Trainer:** record daily clock-in/clock-out, review workout requests, accept/reject requests, and assign plans with exercises from the gym's video library.
-- **Member:** view profile, buy/renew a plan, view recorded payments, request a trainer plan and view assigned exercises/videos.
-
-## 8. Gym Owner platform subscriptions (new feature)
-
-This is a platform-level subscription paid by a Gym Owner to the FitTrack platform. It is separate from `membership_plans` and `payments`, which are used for a gym's own members.
-
-### Existing database: apply only the new migration
-
-If your MySQL Workbench database already has the original 12 business tables and dummy data:
-
-1. Open `sql/migrations/001_platform_subscriptions.sql` in MySQL Workbench.
-2. Confirm the selected schema is `gym_db` (the script also contains `USE gym_db`).
-3. Execute the script. It creates only `platform_subscription_plans` and `gym_owner_subscriptions`; it does not delete or modify your existing 12 tables or their records.
-4. Restart the Node.js app with `npm run dev`.
-
-The Super Admin can then create plans. Approved Gym Owners see active plans and can use the demo checkout. Super Admin sees total revenue from rows whose `payment_status` is `Paid`, active subscriptions, each gym's latest subscription status, and the payment history.
-
-### Demo checkout limitation
-
-The current checkout is deliberately a **demo transaction**: the server reads the price from the selected plan in MySQL and records a test payment as `Paid`. The browser does not choose the price. No real money is collected. Before real deployment, replace this demo endpoint with a payment gateway integration and verify the gateway's signed server-side payment confirmation/webhook before marking a subscription `Paid`.
-
-## 9. Important implementation notes
-
-- SQL operations use prepared statements (`?` placeholders). Table/column names are fixed in the source; user input is never interpolated into SQL identifiers.
-- Passwords are stored as bcrypt hashes in `users.password_hash`.
-- The browser stores a minimal `user` object in `localStorage` for display only. Authentication and role authorization are enforced by a server-side session cookie marked `HttpOnly`; editing local storage does not grant permissions.
-- Member subscription checkout is a **demo payment record**, not a real payment gateway. The selected method is recorded as `Paid`; integrate a provider such as Razorpay/Stripe and verify its server-side payment signature before accepting real money.
-- For production deployment, use HTTPS, a strong session secret, a least-privilege MySQL account, backups, environment-specific monitoring, input validation review, and a real payment provider. Configure secure cookies and trusted proxy settings for your hosting environment.
-
-## 10. Project structure
-
-```text
-gym-management-system/
-├── .env.example  # copy to .env and fill in local credentials
-├── package.json
-├── server.js
-├── config/db.js
-├── middleware/auth.js
-├── routes/
-│   ├── authRoutes.js
-│   ├── adminRoutes.js
-│   ├── ownerRoutes.js
-│   ├── trainerRoutes.js
-│   └── memberRoutes.js
-├── controllers/
-│   ├── authController.js
-│   ├── adminController.js
-│   ├── ownerController.js
-│   ├── trainerController.js
-│   └── memberController.js
-├── views/
-│   ├── login.ejs
-│   ├── register.ejs
-│   ├── superadmin.ejs
-│   ├── owner.ejs
-│   ├── trainer.ejs
-│   ├── member.ejs
-│   └── partials/nav.ejs
-├── public/css/styles.css
-├── public/js/app.js
-├── sql/schema.sql
-├── sql/migrations/001_platform_subscriptions.sql
-├── .env.example
-└── scripts/createSuperAdmin.js
-```
-
-## 11. Troubleshooting
-
-- `ECONNREFUSED` or `ETIMEDOUT`: make sure MySQL Server is running, `DB_HOST` is correct, and MySQL is listening on `DB_PORT` (normally `3306`). Express `PORT=8080` is the web server port; it is not the MySQL port.
-- `Unknown database 'gym_db'`: run `sql/schema.sql` first and check `DB_NAME`.
-- `Access denied`: check `DB_USER`, `DB_PASSWORD`, and the MySQL user's privileges on `gym_db`.
-- `SESSION_SECRET` error: fill it with a random value of at least 32 characters.
-- If you change the MySQL schema, update the corresponding controller queries and keep the foreign-key relationships consistent.
+- `config/` – MySQL connection pool
+- `controllers/` – business logic and parameterized SQL
+- `routes/` – Express API routes
+- `middleware/` – authentication and role authorization
+- `views/` – EJS pages
+- `public/` – CSS and browser JavaScript
+- `sql/migrations/` – incremental database changes

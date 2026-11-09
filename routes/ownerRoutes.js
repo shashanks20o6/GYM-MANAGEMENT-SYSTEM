@@ -9,5 +9,6 @@ router.patch('/users/:userId/:action', controller.reviewUser);
 router.post('/plans', controller.createMembershipPlan);
 router.post('/videos', controller.createWorkoutVideo);
 router.post('/platform-subscriptions', controller.payPlatformSubscription);
+router.post('/trainers/:trainId/salary', controller.payTrainerSalary);
 
 module.exports = router;

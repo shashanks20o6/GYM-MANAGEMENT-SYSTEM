@@ -54,6 +54,13 @@
             <div class="col-md-6"><label class="form-label" for="location">Gym location</label><input class="form-control" id="location" name="location" maxlength="255" placeholder="Area, city"></div>
             <div class="col-12"><label class="form-label" for="contact_info">Contact information</label><input class="form-control" id="contact_info" name="contact_info" maxlength="255" placeholder="Phone number or contact email"></div>
           </div>
+          <div class="section-heading mt-4">FitTrack platform subscription payment</div>
+          <div class="alert alert-warning small" role="note">Demo checkout: this records a test payment for the Super Admin to review. No real money is transferred. If the registration is rejected, the Super Admin can record a refund.</div>
+          <div class="row g-3">
+            <div class="col-md-7"><label class="form-label" for="registration-platform-plan">Choose subscription plan</label><select class="form-select" id="registration-platform-plan" name="platform_plan_id"><option value="">Loading platform plans...</option></select></div>
+            <div class="col-md-5"><label class="form-label" for="registration-payment-method">Payment method</label><select class="form-select" id="registration-payment-method" name="payment_method"><option value="">Choose payment method</option><option value="UPI">UPI (demo)</option><option value="Card">Card (demo)</option><option value="NetBanking">Net Banking (demo)</option><option value="Bank Transfer">Bank Transfer (demo)</option><option value="Cash">Cash (demo)</option></select></div>
+          </div>
+          <p class="form-text mb-0">Your Gym Owner account remains Pending until the Super Admin approves the paid registration.</p>
         </div>
 
         <div class="role-fields mt-4" data-role-fields="Trainers" hidden>
@@ -63,7 +70,7 @@
             <div class="col-md-6"><label class="form-label" for="trainer_last_name">Last name</label><input class="form-control" id="trainer_last_name" name="last_name" maxlength="50"></div>
             <div class="col-md-6"><label class="form-label" for="trainer_gym_id">Select approved gym</label><select class="form-select gym-select" id="trainer_gym_id" name="gym_id"><option value="">Loading gyms...</option></select></div>
             <div class="col-md-6"><label class="form-label" for="emp_type">Employment type</label><select class="form-select" id="emp_type" name="emp_type"><option>Full-time</option><option>Part-time</option><option>Contract</option></select></div>
-            <div class="col-md-4"><label class="form-label" for="base_salary">Base salary</label><input class="form-control" id="base_salary" name="base_salary" type="number" min="0" step="0.01" value="0"></div>
+            <div class="col-md-4"><label class="form-label" for="base_salary">Monthly base salary (₹)</label><input class="form-control" id="base_salary" name="base_salary" type="number" min="0.01" step="0.01" placeholder="e.g. 15000"></div>
             <div class="col-md-4"><label class="form-label" for="commission_rate">Commission rate (%)</label><input class="form-control" id="commission_rate" name="commission_rate" type="number" min="0" max="100" step="0.01" value="0"></div>
             <div class="col-md-4"><label class="form-label" for="exp_years">Experience (years)</label><input class="form-control" id="exp_years" name="exp_years" type="number" min="0" step="1" value="0"></div>
             <div class="col-12"><label class="form-label" for="photo_url">Photo URL (optional)</label><input class="form-control" id="photo_url" name="photo_url" type="url" maxlength="255"></div>
